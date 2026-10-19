@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kokoro 82M — In-Browser TTS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f17;
+      --surface: #141726;
+      --surface2: #1c2035;
+      --border: rgba(255,255,255,0.08);
+      --accent: #7c6af7;
+      --accent2: #a78bfa;
+      --green: #34d399;
+      --red: #f87171;
+      --yellow: #fbbf24;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 14px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 50% -20%, rgba(124,106,247,0.18) 0%, transparent 70%);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px;
+      width: 100%;
+      max-width: 620px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    h1 span { color: var(--accent2); }
+    .subtitle { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    /* Backend selector */
+    .backend-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .backend-btn {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .backend-btn:hover { border-color: rgba(124,106,247,0.4); }
+    .backend-btn.active {
+      border-color: var(--accent);
+      background: rgba(124,106,247,0.12);
+    }
+    .backend-btn .name { font-size: 0.85rem; font-weight: 600; }
+    .backend-btn .desc { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
+    .backend-btn .badge {
+      font-size: 0.65rem; font-weight: 600; padding: 2px 7px;
+      border-radius: 99px; position: absolute; top: 10px; right: 10px;
+    }
+    .badge-fast   { background: rgba(124,106,247,0.2); color: var(--accent2); }
+    .badge-compat { background: rgba(52,211,153,0.15); color: var(--green); }
+
+    label { font-size: 0.8rem; font-weight: 500; color: var(--muted); display: block; margin-bottom: 8px; }
+
+    select, textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 16px;
+      appearance: none;
+    }
+    select:focus, textarea:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+
+    /* Info callout */
+    .callout {
+      display: flex;
+      gap: 10px;
+      background: rgba(251,191,36,0.07);
+      border: 1px solid rgba(251,191,36,0.2);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+    .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+    .callout a { color: var(--accent2); text-decoration: none; }
+    .callout a:hover { text-decoration: underline; }
+
+    /* Generate button */
+    #generate-btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), #9b7df7);
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    #generate-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    #generate-btn:active:not(:disabled) { transform: translateY(0); }
+    #generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+      min-height: 28px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    .dot.loading { background: var(--yellow); animation: pulse 1s infinite; }
+    .dot.success { background: var(--green); }
+    .dot.error   { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    #status-text { font-size: 0.82rem; color: var(--muted); }
+
+    .progress-wrap {
+      height: 3px;
+      background: var(--surface2);
+      border-radius: 99px;
+      margin-top: 10px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .audio-wrap { margin-top: 20px; display: none; }
+    audio { width: 100%; border-radius: 10px; }
+
+    .log-area {
+      margin-top: 16px;
+      background: #0a0c14;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.72rem;
+      font-family: 'Menlo', 'Fira Code', monospace;
+      color: #94a3b8;
+      max-height: 160px;
+      overflow-y: auto;
+      display: none;
+    }
+    .log-entry { line-height: 1.6; }
+    .log-entry.err  { color: var(--red); }
+    .log-entry.ok   { color: var(--green); }
+    .log-entry.info { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="logo">🎙</div>
+      <div>
+        <h1>Kokoro <span>82M</span></h1>
+        <p class="subtitle">In-browser text-to-speech · No server · No data sent</p>
+      </div>
+    </div>
+
+    <label>Backend (device + precision)</label>
+    <div class="backend-row">
+      <button class="backend-btn active" data-device="webgpu" data-dtype="fp32" id="btn-webgpu">
+        <span class="badge badge-fast">Fast</span>
+        <div class="name">WebGPU · fp32</div>
+        <div class="desc">GPU-accelerated · Recommended</div>
+      </button>
+      <button class="backend-btn" data-device="wasm" data-dtype="q8" id="btn-wasm">
+        <span class="badge badge-compat">Compatible</span>
+        <div class="name">WASM · q8</div>
+        <div class="desc">CPU fallback · Slower but reliable</div>
+      </button>
+    </div>
+
+    <label for="voice-select">Voice</label>
+    <select id="voice-select"><!-- populated by JS --></select>
+
+    <div class="callout" id="zh-note" style="display:none">
+      <span class="callout-icon">🌏</span>
+      <span>
+        <strong style="color:var(--text)">Chinese not yet available in the browser.</strong>
+        The <code>kokoro-js</code> npm package (v1.2.1) does not bundle the Mandarin G2P phonemizer
+        (<code>misaki[zh]</code>) required to convert Chinese text to phonemes. This is a library
+        limitation — even loading the <code>v1.1-zh</code> ONNX model won't help because voice
+        validation happens before the model runs.
+        <a href="https://github.com/hexgrad/kokoro/issues" target="_blank">Track progress →</a>
+      </span>
+    </div>
+
+    <label for="text-input">Text to speak</label>
+    <textarea id="text-input" placeholder="Type something to synthesize…">Hello! This audio is generated entirely in your browser using Kokoro 82M, a state-of-the-art text-to-speech model with 82 million parameters.</textarea>
+
+    <button id="generate-btn">▶ Generate Speech</button>
+
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div class="status-row">
+      <div class="dot" id="dot"></div>
+      <span id="status-text">Choose a backend and click Generate.</span>
+    </div>
+
+    <div class="audio-wrap" id="audio-wrap">
+      <audio id="audio-player" controls></audio>
+    </div>
+
+    <div class="log-area" id="log-area"></div>
+  </div>
+
+  <script type="module">
+    import { KokoroTTS } from "https://cdn.jsdelivr.net/npm/kokoro-js/+esm";
+
+    // ── Voice list (exactly what kokoro-js v1.2.1 exposes) ────────────────
+    // Source of truth: the error message from _validate_voice in the library.
+    // Chinese voices (zf_*, zm_*) require misaki[zh] which is NOT bundled
+    // in the browser build of kokoro-js. They are intentionally omitted.
+    const VOICE_GROUPS = [
+      { group: "American Female", voices: [
+        "af_heart ❤️", "af_alloy", "af_aoede", "af_bella",
+        "af_jessica", "af_kore", "af_nicole", "af_nova",
+        "af_river", "af_sarah", "af_sky"
+      ]},
+      { group: "American Male", voices: [
+        "am_adam", "am_echo", "am_eric", "am_fenrir",
+        "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa 🎅"
+      ]},
+      { group: "British Female", voices: [
+        "af_alice", "bf_alice", "bf_emma", "bf_isabella", "bf_lily"
+      ]},
+      { group: "British Male", voices: [
+        "bm_daniel", "bm_fable", "bm_george", "bm_lewis"
+      ]},
+    ];
+
+    // ── DOM refs ───────────────────────────────────────────────────────────
+    const btn         = document.getElementById("generate-btn");
+    const dot         = document.getElementById("dot");
+    const statusText  = document.getElementById("status-text");
+    const audioWrap   = document.getElementById("audio-wrap");
+    const audioPlayer = document.getElementById("audio-player");
+    const progressWrap= document.getElementById("progress-wrap");
+    const progressBar = document.getElementById("progress-bar");
+    const logArea     = document.getElementById("log-area");
+    const voiceSel    = document.getElementById("voice-select");
+    const textInput   = document.getElementById("text-input");
+
+    // ── Populate voice select ──────────────────────────────────────────────
+    VOICE_GROUPS.forEach(({ group, voices }) => {
+      const og = document.createElement("optgroup");
+      og.label = group;
+      voices.forEach(label => {
+        const id  = label.split(" ")[0]; // strip emoji
+        const opt = document.createElement("option");
+        opt.value       = id;
+        opt.textContent = label;
+        if (id === "af_heart") opt.selected = true;
+        og.appendChild(opt);
+      });
+      voiceSel.appendChild(og);
+    });
+
+    // ── State ──────────────────────────────────────────────────────────────
+    const ttsCache    = {}; // keyed by "device|dtype" — survives backend switches
+    let currentDevice = "webgpu";
+    let currentDtype  = "fp32";
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function log(msg, type = "info") {
+      console.log(`[TTS] ${msg}`);
+      logArea.style.display = "block";
+      const el = document.createElement("div");
+      el.className = `log-entry ${type}`;
+      el.textContent = `› ${msg}`;
+      logArea.appendChild(el);
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    function setStatus(msg, state = "loading") {
+      statusText.textContent = msg;
+      dot.className = "dot " + state;
+      log(msg, state === "error" ? "err" : state === "success" ? "ok" : "info");
+    }
+
+    function setProgress(pct) {
+      progressWrap.style.display = "block";
+      progressBar.style.width = pct + "%";
+      if (pct >= 100) setTimeout(() => { progressWrap.style.display = "none"; }, 600);
+    }
+
+    // ── Backend toggle ─────────────────────────────────────────────────────
+    document.querySelectorAll(".backend-btn").forEach(b => {
+      b.addEventListener("click", () => {
+        if (btn.disabled) return;
+        document.querySelectorAll(".backend-btn").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        const nd = b.dataset.device, ndt = b.dataset.dtype;
+        if (nd !== currentDevice || ndt !== currentDtype) {
+          currentDevice = nd; currentDtype = ndt;
+          dot.className = "dot";
+          statusText.textContent = `Backend: ${nd.toUpperCase()} / ${ndt}. Click Generate to load.`;
+        }
+      });
+    });
+
+    // ── Generate ───────────────────────────────────────────────────────────
+    btn.addEventListener("click", async () => {
+      const text  = textInput.value.trim();
+      if (!text) { setStatus("Please enter some text first.", "error"); return; }
+      const voice = voiceSel.value;
+
+      btn.disabled = true;
+      audioWrap.style.display = "none";
+      logArea.innerHTML = "";
+
+      try {
+        // Load model (cached per backend combination)
+        const cacheKey = `${currentDevice}|${currentDtype}`;
+        let tts = ttsCache[cacheKey];
+        if (!tts) {
+          const MODEL = "onnx-community/Kokoro-82M-v1.0-ONNX";
+          setStatus(`Loading model (${currentDevice.toUpperCase()} · ${currentDtype}) — first load ~30s…`);
+          setProgress(10);
+          log(`device=${currentDevice}  dtype=${currentDtype}`);
+          log(`model: ${MODEL}`);
+
+          tts = await KokoroTTS.from_pretrained(MODEL, {
+            dtype: currentDtype,
+            device: currentDevice,
+          });
+          ttsCache[cacheKey] = tts;
+
+          setProgress(60);
+          setStatus("Model loaded ✓", "success");
+          log("Model ready!", "ok");
+        }
+
+        // Generate
+        setStatus("Generating speech…");
+        setProgress(75);
+        log(`Generating with voice="${voice}" …`);
+
+        const result = await tts.generate(text, { voice });
+
+        log(`Audio ready: ${result.audio.length} samples @ ${result.sampling_rate ?? 24000} Hz`, "ok");
+        setProgress(90);
+
+        // Encode Float32 → 16-bit PCM WAV with proper headers
+        const sampleRate = result.sampling_rate ?? 24000;
+        const wavBlob = encodeWAV(result.audio, sampleRate);
+        const url = URL.createObjectURL(wavBlob);
+        if (audioPlayer._blobUrl) URL.revokeObjectURL(audioPlayer._blobUrl);
+        audioPlayer._blobUrl = url;
+        audioPlayer.src = url;
+        audioWrap.style.display = "block";
+
+        setProgress(100);
+        setStatus("Done! Playing…", "success");
+        await audioPlayer.play().catch(() => {});
+
+      } catch (err) {
+        console.error(err);
+        setStatus("Error: " + err.message, "error");
+        log(err.stack || err.message, "err");
+        if (currentDevice === "webgpu") {
+          log("💡 WebGPU failed. Try switching to WASM · q8.", "info");
+        }
+        const cacheKey = `${currentDevice}|${currentDtype}`;
+        delete ttsCache[cacheKey];
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ── WAV encoder — Float32[-1,1] → 16-bit PCM RIFF/WAV ────────────────
+    function encodeWAV(samples, sampleRate) {
+      const dataBytes = samples.length * 2;
+      const buffer    = new ArrayBuffer(44 + dataBytes);
+      const view      = new DataView(buffer);
+      const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+
+      str(0,  "RIFF"); view.setUint32(4,  36 + dataBytes, true);
+      str(8,  "WAVE"); str(12, "fmt ");
+      view.setUint32(16, 16, true);        // fmt chunk size
+      view.setUint16(20, 1,  true);        // PCM
+      view.setUint16(22, 1,  true);        // mono
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true); // byte rate
+      view.setUint16(32, 2,  true);        // block align
+      view.setUint16(34, 16, true);        // bits/sample
+      str(36, "data"); view.setUint32(40, dataBytes, true);
+
+      let off = 44;
+      for (let i = 0; i < samples.length; i++, off += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      return new Blob([view], { type: "audio/wav" });
+    }
+  </script>
+</body>
+</html>
